@@ -65,46 +65,34 @@ class JobList implements IJobList {
 	 * @param mixed $argument
 	 */
 	public function add($job, $argument = null) {
+		if ($job instanceof IJob) {
+			$class = get_class($job);
+		} else {
+			$class = $job;
+		}
+
+		$argumentJson = json_encode($argument);
+		if (strlen($argumentJson) > 4000) {
+			throw new \InvalidArgumentException('Background job arguments can\'t exceed 4000 characters (json encoded)');
+		}
+
+		$query = $this->connection->getQueryBuilder();
 		if (!$this->has($job, $argument)) {
-			if ($job instanceof IJob) {
-				$class = get_class($job);
-			} else {
-				$class = $job;
-			}
-
-			$argument = json_encode($argument);
-			if (strlen($argument) > 4000) {
-				throw new \InvalidArgumentException('Background job arguments can\'t exceed 4000 characters (json encoded)');
-			}
-
-			$query = $this->connection->getQueryBuilder();
 			$query->insert('jobs')
 				->values([
 					'class' => $query->createNamedParameter($class),
-					'argument' => $query->createNamedParameter($argument),
+					'argument' => $query->createNamedParameter($argumentJson),
 					'last_run' => $query->createNamedParameter(0, IQueryBuilder::PARAM_INT),
 					'last_checked' => $query->createNamedParameter($this->timeFactory->getTime(), IQueryBuilder::PARAM_INT),
 				]);
 			$query->execute();
 		} else {
-			if ($job instanceof IJob) {
-				$class = get_class($job);
-			} else {
-				$class = $job;
-			}
-
-			$argument = json_encode($argument);
-			if (strlen($argument) > 4000) {
-				throw new \InvalidArgumentException('Background job arguments can\'t exceed 4000 characters (json encoded)');
-			}
-
-			$reset = $this->connection->getQueryBuilder();
-			$reset->update('jobs')
-				->set('reserved_at', $reset->expr()->literal(0, IQueryBuilder::PARAM_INT))
-				->set('last_checked', $reset->createNamedParameter($this->timeFactory->getTime(), IQueryBuilder::PARAM_INT))
-				->where($reset->expr()->eq('class', $reset->createNamedParameter($class)))
-				->andWhere($reset->expr()->eq('argument', $reset->createNamedParameter($argument)));
-			$reset->execute();
+			$query->update('jobs')
+				->set('reserved_at', $query->expr()->literal(0, IQueryBuilder::PARAM_INT))
+				->set('last_checked', $query->createNamedParameter($this->timeFactory->getTime(), IQueryBuilder::PARAM_INT))
+				->where($query->expr()->eq('class', $query->createNamedParameter($class)))
+				->andWhere($query->expr()->eq('argument', $query->createNamedParameter($argumentJson)));
+			$query->execute();
 		}
 	}
 
